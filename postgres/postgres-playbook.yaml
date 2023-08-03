@@ -1,0 +1,25 @@
+---
+- name: Install PostgreSQL server on Ubuntu
+  hosts: your_target_host
+  become: yes
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+      when: ansible_os_family == 'Debian'
+
+    - name: Install PostgreSQL server and client packages
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+          - postgresql-client
+      when: ansible_os_family == 'Debian'
+
+    - name: Ensure PostgreSQL service is running and enabled
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+      when: ansible_os_family == 'Debian'
