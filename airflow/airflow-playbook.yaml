@@ -1,0 +1,82 @@
+---
+- name: Setup Airflow server with Conda and Nginx reverse proxy
+  hosts: your_server_ip  # Replace with your target server IP or hostname
+  remote_user: your_remote_user  # Replace with the remote user with sudo privileges
+
+  vars:
+    airflow_version: "2.1.0"  # Replace with your desired Airflow version
+    conda_env_name: "airflow_env"  # Replace with your desired Conda environment name
+
+  tasks:
+    - name: Update apt cache
+      become: true
+      apt:
+        update_cache: yes
+
+    - name: Install required packages
+      become: true
+      apt:
+        name:
+          - python3-pip
+          - libmysqlclient-dev
+          - libssl-dev
+          - libffi-dev
+          - build-essential
+          - python3-venv
+        state: present
+
+    - name: Install Miniconda
+      become: true
+      shell: "wget -qO /tmp/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && bash /tmp/miniconda.sh -b -p /opt/miniconda"
+      args:
+        creates: /opt/miniconda
+
+    - name: Configure Conda environment
+      become: true
+      shell: "/opt/miniconda/bin/conda create -y -n {{ conda_env_name }} python=3.8"
+      args:
+        creates: "/opt/miniconda/envs/{{ conda_env_name }}"
+
+    - name: Install Airflow using Conda
+      become: true
+      shell: "/opt/miniconda/bin/conda install -y -n {{ conda_env_name }} apache-airflow={{ airflow_version }}"
+      args:
+        creates: "/opt/miniconda/envs/{{ conda_env_name }}/lib/python3.8/site-packages/airflow"
+
+    - name: Initialize Airflow database
+      become: true
+      shell: "/opt/miniconda/envs/{{ conda_env_name }}/bin/airflow db init"
+      args:
+        creates: "/opt/miniconda/envs/{{ conda_env_name }}/airflow.db"
+
+    - name: Start Airflow scheduler and webserver
+      become: true
+      shell: "/opt/miniconda/envs/{{ conda_env_name }}/bin/airflow scheduler -D && /opt/miniconda/envs/{{ conda_env_name }}/bin/airflow webserver -D"
+
+    - name: Install Nginx
+      become: true
+      apt:
+        name: nginx
+        state: present
+
+    - name: Configure Nginx reverse proxy for Airflow
+      become: true
+      template:
+        src: templates/airflow_nginx.conf.j2  # Replace with the path to your Jinja2 template for Nginx config
+        dest: /etc/nginx/sites-available/airflow
+      notify:
+        - Restart Nginx
+
+    - name: Enable Nginx configuration
+      become: true
+      file:
+        src: /etc/nginx/sites-available/airflow
+        dest: /etc/nginx/sites-enabled/airflow
+        state: link
+
+  handlers:
+    - name: Restart Nginx
+      become: true
+      service:
+        name: nginx
+        state: restarted
