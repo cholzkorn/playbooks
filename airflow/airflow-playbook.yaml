@@ -49,9 +49,31 @@
       args:
         creates: "/opt/miniconda/envs/{{ conda_env_name }}/airflow.db"
 
-    - name: Start Airflow scheduler and webserver
+    - name: Configure Airflow systemd service - Scheduler
       become: true
-      shell: "/opt/miniconda/envs/{{ conda_env_name }}/bin/airflow scheduler -D && /opt/miniconda/envs/{{ conda_env_name }}/bin/airflow webserver -D"
+      template:
+        src: templates/airflow_scheduler.service.j2  # Replace with the path to your Jinja2 template for Scheduler service
+        dest: /etc/systemd/system/airflow_scheduler.service
+      notify:
+        - Restart Airflow Scheduler
+
+    - name: Configure Airflow systemd service - Webserver
+      become: true
+      template:
+        src: templates/airflow_webserver.service.j2  # Replace with the path to your Jinja2 template for Webserver service
+        dest: /etc/systemd/system/airflow_webserver.service
+      notify:
+        - Restart Airflow Webserver
+
+    - name: Start and enable Airflow services
+      become: true
+      systemd:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      with_items:
+        - airflow_scheduler
+        - airflow_webserver
 
     - name: Install Nginx
       become: true
@@ -79,4 +101,16 @@
       become: true
       service:
         name: nginx
+        state: restarted
+
+    - name: Restart Airflow Scheduler
+      become: true
+      service:
+        name: airflow_scheduler
+        state: restarted
+
+    - name: Restart Airflow Webserver
+      become: true
+      service:
+        name: airflow_webserver
         state: restarted
