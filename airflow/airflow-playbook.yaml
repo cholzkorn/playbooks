@@ -3,9 +3,15 @@
   hosts: your_server_ip  # Replace with your target server IP or hostname
   remote_user: your_remote_user  # Replace with the remote user with sudo privileges
 
+  vars_files:
+    - credentials.yaml  # Include the credentials file
+
   vars:
     airflow_version: "2.1.0"  # Replace with your desired Airflow version
     conda_env_name: "airflow_env"  # Replace with your desired Conda environment name
+    postgres_host: "localhost"
+    postgres_port: 5432
+    postgres_db: "your_postgres_db"  # Define the database separately
 
   tasks:
     - name: Update apt cache
@@ -95,6 +101,15 @@
         src: /etc/nginx/sites-available/airflow
         dest: /etc/nginx/sites-enabled/airflow
         state: link
+    
+    - name: Add Airflow connection to PostgreSQL
+      become: true
+      command: >
+        /opt/miniconda/envs/{{ conda_env_name }}/bin/airflow connections add
+        'your_postgres_connection_id'
+        --conn-uri 'postgresql://{{ postgres_user }}:{{ postgres_password }}@{{ postgres_host }}:{{ postgres_port }}/{{ postgres_db }}'
+        --conn-type postgres
+      ignore_errors: yes
 
   handlers:
     - name: Restart Nginx
